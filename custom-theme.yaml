@@ -1,0 +1,12 @@
+# Custom OpenETS Theme
+# Uses FlatLaf properties. Colors must be hex.
+"@accentColor": "#00ff00"
+"Panel.background": "#1e1e1e"
+"Tree.background": "#1e1e1e"
+"Tree.textForeground": "#d4d4d4"
+"Table.background": "#1e1e1e"
+"Table.gridColor": "#333333"
+"Table.foreground": "#d4d4d4"
+"MenuBar.background": "#252526"
+"Menu.foreground": "#d4d4d4"
+"MenuItem.foreground": "#d4d4d4"

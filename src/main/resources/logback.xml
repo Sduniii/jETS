@@ -1,0 +1,17 @@
+<configuration debug="true">
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="LOG_MANAGER" class="de.sduni.jets.util.LogbackAppender" />
+
+    <logger name="tuwien.auto.calimero" level="TRACE" />
+    <logger name="de.sduni.jets" level="DEBUG" />
+
+    <root level="INFO">
+        <appender-ref ref="STDOUT" />
+        <appender-ref ref="LOG_MANAGER" />
+    </root>
+</configuration>

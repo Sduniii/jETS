@@ -1,0 +1,71 @@
+---
+name: "Jalousieaktor 1-fach mit Taster-/Kontakteingang 4-fach"
+id: "M-0083_H-35-50"
+nonRegRelevantDataVersion: 2
+serialNumber: "35"
+versionNumber: 50
+busCurrent: 10.0
+tp256: false
+isAccessory: false
+hasIndividualAddress: true
+hasApplicationProgram: true
+hasApplicationProgram2: false
+isPowerSupply: false
+isChoke: false
+isCoupler: false
+isPowerLineRepeater: false
+isPowerLineSignalFilter: false
+isCable: false
+isIPEnabled: false
+isRFRetransmitter: false
+originalManufacturer: null
+rfrxCapabilities: null
+rftxCapabilities: null
+noDownloadWithoutPlugin: false
+internalDescription: null
+products:
+  product:
+  - id: "M-0083_H-35-50_P-JAL.2DB1UP.2E02"
+    attributes: null
+    text: "JAL-B1UP.02 Shutter Actuator 1-fold with Button/Binary Input 4-fold"
+    nonRegRelevantDataVersion: 2
+    internalDescription: null
+    orderNumber: "JAL-B1UP.02"
+    isRailMounted: false
+    widthInMillimeter: 0.0
+    visibleDescription: null
+    defaultLanguage: "en-US"
+    hash: !!binary |-
+      ZixohebvMxXfdHpnNPS+Whbzmrs=
+    baggages: null
+    registrationInfo:
+      registrationStatus: "Certified"
+      registrationNumber: null
+      originalRegistrationNumber: null
+      registrationDate: "2018-08-23"
+      registrationSignature: !!binary |-
+        RnnynBwIU8yklLpI8z+LLaF+nG0xgVbImqeycTNw2NKkifpycTrKl8YVp82van1F4WenzHqoA530
+        +sokUmDFNCMyxsG4hCYw0ODil6WsvJ+RM69sxmYpufKuBWgCi7zWeV8MOD43MBRutDpRXurSVOAe
+        HwBz0pH+D1cpKx0qlLY=
+      registrationKey: null
+hardware2Programs:
+  hardware2Program:
+  - id: "M-0083_H-35-50_HP-0023-39-723D"
+    hash: !!binary |-
+      D4DYRxiDpQOfGvx5nyj5tFgfDOo=
+    registrationInfo:
+      registrationStatus: "Registered"
+      registrationNumber: "2021/17923"
+      originalRegistrationNumber: null
+      registrationDate: "2021-10-15"
+      registrationSignature: !!binary |-
+        W6a4lxZMPVD/ELD5WF0Tkwj2rm1N1wJx+CNEYFozFyYwUse63rO9GmWRmURC50ERlkfFLEMuvOX5
+        VT8+1FK/56TQDpxHTvbFytK7x/oCi5Kpe30bm6xNdhZimqCanf5j8qfT8iGPuRvqMzl7NrCVK9Wp
+        wTHGXQlKIzXbZD6xbEs=
+      registrationKey: null
+    mediumTypes: "MT-0"
+    checkSums: null
+    loadedImage: null
+    couplerCapabilities: null
+    applicationProgramRef:
+    - refId: "M-0083_A-0023-39-723D"
