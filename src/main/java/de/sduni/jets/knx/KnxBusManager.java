@@ -134,4 +134,9 @@ public class KnxBusManager {
     public void addBusListener(Consumer<FrameEvent> listener) { listeners.add(listener); }
     private void notifyListeners(FrameEvent e) { for (Consumer<FrameEvent> l : listeners) l.accept(e); }
     public boolean isConnected() { return link != null && link.isOpen(); }
+
+    public String getConnectionInfo() {
+        if (!isConnected()) return "Disconnected";
+        return link.getRemoteAddress().toString() + " (" + link.getName() + ")";
+    }
 }

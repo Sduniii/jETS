@@ -24,6 +24,7 @@ public class Jets extends JFrame {
 
     private JDesktopPane desktopPane;
     private WindowManager windowManager;
+    private JLabel statusLabel;
     private ProjectReader projectReader = new ProjectReader();
     private ProductReader productReader = new ProductReader();
     public static CatalogManager catalogManager;
@@ -54,13 +55,34 @@ public class Jets extends JFrame {
 
         desktopPane = new JDesktopPane();
         desktopPane.setBackground(Color.DARK_GRAY);
-        setContentPane(desktopPane);
+        
+        // Status Bar
+        JPanel statusBar = new JPanel(new BorderLayout());
+        statusBar.setBorder(BorderFactory.createEtchedBorder());
+        statusLabel = new JLabel(" Disconnected");
+        statusLabel.setForeground(Color.RED);
+        statusBar.add(statusLabel, BorderLayout.WEST);
+        
+        getContentPane().setLayout(new BorderLayout());
+        getContentPane().add(desktopPane, BorderLayout.CENTER);
+        getContentPane().add(statusBar, BorderLayout.SOUTH);
         
         windowManager = new WindowManager(desktopPane);
         setJMenuBar(createMenuBar());
         
         new Timer(60000, e -> autoSaveWorkspace()).start();
+        new Timer(2000, e -> updateStatus()).start();
         logger.info("UI initialized.");
+    }
+
+    private void updateStatus() {
+        if (busManager.isConnected()) {
+            statusLabel.setText(" Connected: " + busManager.getConnectionInfo());
+            statusLabel.setForeground(new Color(0, 120, 0));
+        } else {
+            statusLabel.setText(" Disconnected");
+            statusLabel.setForeground(Color.RED);
+        }
     }
 
     private JMenuBar createMenuBar() {
