@@ -6,6 +6,8 @@ import com.fasterxml.jackson.annotation.*;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ManufacturerData_Manufacturer extends KnxBase {
+    @JacksonXmlProperty(isAttribute = true, localName = "Id")
+    private String Id;
     @JacksonXmlProperty(isAttribute = true, localName = "RefId")
     private String RefId;
     @JacksonXmlProperty(localName = "Catalog")
@@ -19,6 +21,8 @@ public class ManufacturerData_Manufacturer extends KnxBase {
     @JacksonXmlProperty(localName = "Languages")
     private ManufacturerData_Manufacturer_Languages Languages = null;
 
+    public String getId() { return Id; }
+    public void setId(String value) { this.Id = value; }
     public String getRefId() { return RefId; }
     public void setRefId(String value) { this.RefId = value; }
     public ManufacturerData_Manufacturer_Catalog getCatalog() { return Catalog; }

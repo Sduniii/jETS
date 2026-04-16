@@ -14,11 +14,17 @@ public class ProjectTreeNode {
     private static final Logger logger = LoggerFactory.getLogger(ProjectTreeNode.class);
     private final Object userObject;
     private final String name;
+    private final boolean isLink;
     private List<ProjectTreeNode> children;
 
     public ProjectTreeNode(String name, Object userObject) {
+        this(name, userObject, false);
+    }
+
+    public ProjectTreeNode(String name, Object userObject, boolean isLink) {
         this.name = name;
         this.userObject = userObject;
+        this.isLink = isLink;
     }
 
     public Object getUserObject() {
@@ -44,37 +50,31 @@ public class ProjectTreeNode {
     private void buildChildren() {
         if (userObject == null) return;
 
-        // 1. Resolve Target
         Object target = userObject;
         if (userObject instanceof DeviceInstanceRef) {
             DeviceInstanceRef ref = (DeviceInstanceRef) userObject;
             target = Jets.currentContext.findById(ref.getRefId());
             if (target == null) {
                 logger.warn("Could not resolve DeviceInstanceRef: {}", ref.getRefId());
-                target = userObject; // Stay at ref if not found
+                target = userObject;
             }
         }
 
-        // 2. Specialized structure for DeviceInstance
         if (target instanceof DeviceInstance) {
             DeviceInstance di = (DeviceInstance) target;
             
-            // Parameters
             if (di.getParameterInstanceRefs() != null && di.getParameterInstanceRefs().getParameterInstanceRef() != null) {
                 ProjectTreeNode paramFolder = new ProjectTreeNode("🔧 Parameters", null);
                 for (ParameterInstanceRef p : di.getParameterInstanceRefs().getParameterInstanceRef()) {
-                    String label = getParameterLabel(p);
-                    paramFolder.getChildren().add(new ProjectTreeNode(label + ": " + p.getValue(), p));
+                    paramFolder.getChildren().add(new ProjectTreeNode(getParameterLabel(di, p) + ": " + p.getValue(), p));
                 }
                 if (!paramFolder.getChildren().isEmpty()) children.add(paramFolder);
             }
 
-            // ComObjects
             if (di.getComObjectInstanceRefs() != null && di.getComObjectInstanceRefs().getComObjectInstanceRef() != null) {
                 ProjectTreeNode koFolder = new ProjectTreeNode("📡 Communication Objects", null);
                 for (ComObjectInstanceRef cor : di.getComObjectInstanceRefs().getComObjectInstanceRef()) {
-                    String label = getKoLabel(cor);
-                    koFolder.getChildren().add(new ProjectTreeNode(label, cor));
+                    koFolder.getChildren().add(new ProjectTreeNode(getKoLabel(di, cor), cor));
                 }
                 if (!koFolder.getChildren().isEmpty()) children.add(koFolder);
             }
@@ -83,103 +83,123 @@ public class ProjectTreeNode {
             return;
         }
 
-        // 3. Normal recursion
+        if (!isLink && target instanceof ComObjectInstanceRef) {
+            ComObjectInstanceRef cor = (ComObjectInstanceRef) target;
+            List<String> gaIds = Jets.currentContext.getLinkedGroupAddressIds(cor);
+            for (String gaId : gaIds) {
+                GroupAddress ga = Jets.currentContext.findGroupAddress(gaId);
+                if (ga != null) {
+                    children.add(new ProjectTreeNode("🔗 Linked GA: " + ga.getName() + " [" + formatGroupAddress(ga.getAddress()) + "]", ga, true));
+                }
+            }
+            return;
+        }
+
+        if (!isLink && target instanceof GroupAddress) {
+            GroupAddress ga = (GroupAddress) target;
+            String gaIdShort = ga.getId();
+            if (gaIdShort.contains("_")) gaIdShort = gaIdShort.substring(gaIdShort.lastIndexOf('_') + 1);
+            
+            List<DeviceInstance> allDevs = Jets.currentContext.findAllDevices();
+            for (DeviceInstance di : allDevs) {
+                if (di.getComObjectInstanceRefs() != null) {
+                    for (ComObjectInstanceRef cor : di.getComObjectInstanceRefs().getComObjectInstanceRef()) {
+                        List<String> linkedIds = Jets.currentContext.getLinkedGroupAddressIds(cor);
+                        boolean linked = false;
+                        for (String lid : linkedIds) {
+                            if (lid.equals(ga.getId()) || lid.equals(gaIdShort)) {
+                                linked = true;
+                                break;
+                            }
+                        }
+                        if (linked) {
+                            String label = "🔗 Linked KO: " + getDeviceDisplayName(di) + " -> " + getKoLabel(di, cor);
+                            children.add(new ProjectTreeNode(label, cor, true));
+                        }
+                    }
+                }
+            }
+            addOtherChildren(target, List.of());
+            return;
+        }
+
+        if (target instanceof ParameterInstanceRef || target instanceof ComObject || target instanceof ApplicationProgramStatic_Parameters_Parameter) {
+            return;
+        }
+
         addOtherChildren(target, List.of());
     }
 
     private void addOtherChildren(Object target, List<String> skipMethods) {
         if (!(target instanceof KnxBase)) return;
-        
         Method[] methods = target.getClass().getMethods();
         for (Method method : methods) {
-            if (method.getName().startsWith("get") && method.getParameterCount() == 0 && !method.getName().equals("getClass")) {
-                if (skipMethods.contains(method.getName())) continue;
-                
+            if (method.getName().startsWith("get") && method.getParameterCount() == 0 && 
+                !method.getName().equals("getClass") && !method.getName().equals("getProject") &&
+                !skipMethods.contains(method.getName())) {
                 try {
-                    Object value = method.invoke(target);
-                    if (value == null) continue;
-
-                    String propName = method.getName().substring(3);
-
-                    if (value instanceof KnxBase) {
-                        String display = getDisplayName((KnxBase) value, propName);
-                        children.add(new ProjectTreeNode(display, value));
-                    } else if (value instanceof Collection<?>) {
-                        for (Object item : (Collection<?>) value) {
+                    Object result = method.invoke(target);
+                    if (result instanceof KnxBase) {
+                        String nodeName = method.getName().substring(3);
+                        children.add(new ProjectTreeNode(getDisplayName((KnxBase)result, nodeName), result));
+                    } else if (result instanceof Collection) {
+                        for (Object item : (Collection<?>) result) {
                             if (item instanceof KnxBase) {
-                                String display = getDisplayName((KnxBase) item, propName);
-                                children.add(new ProjectTreeNode(display, item));
+                                String nodeName = method.getName().substring(3);
+                                children.add(new ProjectTreeNode(getDisplayName((KnxBase)item, nodeName), item));
                             }
                         }
                     }
-                } catch (Exception ignored) {}
+                } catch (Exception e) { logger.error("Error building children", e); }
             }
         }
     }
 
-    private String getParameterLabel(ParameterInstanceRef p) {
-        Object target = Jets.currentContext.findById(p.getRefId());
-        if (target instanceof ApplicationProgramStatic_Parameters_Parameter) {
-            ApplicationProgramStatic_Parameters_Parameter appParam = (ApplicationProgramStatic_Parameters_Parameter) target;
-            if (appParam.getText() != null && !appParam.getText().isEmpty()) return appParam.getText();
-            if (appParam.getName() != null && !appParam.getName().isEmpty()) return appParam.getName();
-        }
-        return p.getRefId();
+    private String getParameterLabel(DeviceInstance di, ParameterInstanceRef p) {
+        String text = Jets.currentContext.findParameterText(di, p.getRefId());
+        return (text != null && !text.isEmpty()) ? text : p.getRefId();
     }
 
-    private String getKoLabel(ComObjectInstanceRef cor) {
-        String koNum = "";
-        Object coTarget = Jets.currentContext.findById(cor.getRefId());
-        if (coTarget instanceof ComObject) {
-            koNum = ((ComObject) coTarget).getNumber() + ": ";
+    private String getKoLabel(DeviceInstance di, ComObjectInstanceRef cor) {
+        ComObject co = Jets.currentContext.findComObject(di, cor.getRefId());
+        String num = (co != null) ? String.valueOf(co.getNumber()) : "?";
+        String name = (cor.getText() != null && !cor.getText().isEmpty()) ? cor.getText() : (co != null ? co.getText() : "");
+        String func = (cor.getFunctionText() != null && !cor.getFunctionText().isEmpty()) ? cor.getFunctionText() : (co != null ? co.getFunctionText() : "");
+        
+        StringBuilder sb = new StringBuilder("KO " + num + ": ");
+        if (!func.isEmpty()) sb.append(func);
+        if (!name.isEmpty()) {
+            if (!func.isEmpty()) sb.append(" - ");
+            sb.append(name);
         }
-        return "KO " + koNum + (cor.getFunctionText() != null ? cor.getFunctionText() : "") + 
-               (cor.getText() != null ? " - " + cor.getText() : "");
+        if (func.isEmpty() && name.isEmpty()) sb.append(cor.getRefId());
+        return sb.toString();
     }
 
     private String getDisplayName(KnxBase item, String fallbackName) {
         Object displayItem = item;
         if (item instanceof DeviceInstanceRef) {
-            Object resolved = Jets.currentContext.findById(((DeviceInstanceRef) item).getRefId());
-            if (resolved != null) displayItem = resolved;
+            DeviceInstanceRef ref = (DeviceInstanceRef) item;
+            displayItem = Jets.currentContext.findById(ref.getRefId());
         }
-
-        String typeName = displayItem.getClass().getSimpleName();
-        String addr = "";
+        if (displayItem instanceof DeviceInstance) {
+            DeviceInstance di = (DeviceInstance) displayItem;
+            String prodName = Jets.currentContext.resolveProductName(di);
+            String name = (di.getName() != null && !di.getName().isEmpty()) ? di.getName() : prodName;
+            return "Device: " + (name != null ? name : "Unknown") + " [." + di.getAddress() + "]";
+        }
         try {
-            Method getAddr = displayItem.getClass().getMethod("getAddress");
-            Object addrVal = getAddr.invoke(displayItem);
-            if (addrVal != null) {
-                if (displayItem instanceof DeviceInstance) addr = " [." + addrVal + "]";
-                else addr = " [" + addrVal + "]";
-            }
+            Method m = displayItem.getClass().getMethod("getName");
+            String name = (String) m.invoke(displayItem);
+            if (name != null && !name.isEmpty()) return name;
         } catch (Exception ignored) {}
+        return fallbackName;
+    }
 
-        String label = "";
-        try {
-            Method getName = displayItem.getClass().getMethod("getName");
-            Object nameVal = getName.invoke(displayItem);
-            if (nameVal != null && !nameVal.toString().isEmpty()) label = nameVal.toString();
-        } catch (Exception ignored) {}
-        
-        if (label.isEmpty()) {
-            try {
-                Method getId = displayItem.getClass().getMethod("getId");
-                Object idVal = getId.invoke(displayItem);
-                if (idVal != null && !idVal.toString().isEmpty()) label = idVal.toString();
-            } catch (Exception ignored) {}
-        }
-
-        if (displayItem instanceof Topology_Area) typeName = "Area";
-        else if (displayItem instanceof Topology_Area_Line) typeName = "Line";
-        else if (displayItem instanceof DeviceInstance) typeName = "Device";
-        else if (displayItem instanceof GroupAddress) {
-            typeName = "Group";
-            addr = " [" + formatGroupAddress(((GroupAddress) displayItem).getAddress()) + "]";
-        }
-
-        if (!label.isEmpty()) return typeName + ": " + label + addr;
-        return typeName + " (" + fallbackName + ")" + addr;
+    private String getDeviceDisplayName(DeviceInstance di) {
+        String prodName = Jets.currentContext.resolveProductName(di);
+        String name = (di.getName() != null && !di.getName().isEmpty()) ? di.getName() : prodName;
+        return (name != null ? name : "Unknown") + " [." + di.getAddress() + "]";
     }
 
     private String formatGroupAddress(long address) {
@@ -189,8 +209,13 @@ public class ProjectTreeNode {
         return p + "/" + m + "/" + s;
     }
 
-    @Override
-    public String toString() {
-        return name;
+    private String formatIndividualAddress(int address) {
+        int a = (address >> 12) & 0x0F;
+        int l = (address >> 8) & 0x0F;
+        int d = address & 0xFF;
+        return a + "." + l + "." + d;
     }
+
+    @Override
+    public String toString() { return name; }
 }

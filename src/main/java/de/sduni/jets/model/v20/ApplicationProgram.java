@@ -88,6 +88,9 @@ public class ApplicationProgram extends KnxBase {
     private ApplicationProgram_ModuleDefs ModuleDefs = null;
     @JacksonXmlProperty(localName = "Dynamic")
     private ApplicationProgramDynamic Dynamic = null;
+    @JacksonXmlElementWrapper(localName = "Languages")
+    @JacksonXmlProperty(localName = "Language")
+    private java.util.List<Language> Language = new java.util.ArrayList<>();
 
     public String getId() { return Id; }
     public void setId(String value) { this.Id = value; }
@@ -171,4 +174,6 @@ public class ApplicationProgram extends KnxBase {
     public void setModuleDefs(ApplicationProgram_ModuleDefs value) { this.ModuleDefs = value; }
     public ApplicationProgramDynamic getDynamic() { return Dynamic; }
     public void setDynamic(ApplicationProgramDynamic value) { this.Dynamic = value; }
+    public java.util.List<Language> getLanguage() { return Language; }
+    public void setLanguage(java.util.List<Language> value) { this.Language = value; }
 }

@@ -40,6 +40,7 @@ logs/
 Thumbs.db
 
 # Project Specific (Temporary unpack folders)
+testpak/
 tmp_unpacked_*
 test_unpack/
 test_unpack_dir/

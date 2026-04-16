@@ -230,9 +230,16 @@ public class ProjectReader {
         List<ManufacturerData_Manufacturer> sList = source.getManufacturerData().getManufacturer();
         if (sList != null) {
             for (ManufacturerData_Manufacturer sm : sList) {
+                String sId = sm.getId() != null ? sm.getId() : sm.getRefId();
+                if (sId == null) continue;
+
                 ManufacturerData_Manufacturer rm = rList.stream()
-                        .filter(m -> sm.getRefId() != null && sm.getRefId().equals(m.getRefId()))
+                        .filter(m -> {
+                            String rId = m.getId() != null ? m.getId() : m.getRefId();
+                            return sId.equals(rId);
+                        })
                         .findFirst().orElse(null);
+
                 if (rm == null) {
                     rList.add(sm);
                 } else {

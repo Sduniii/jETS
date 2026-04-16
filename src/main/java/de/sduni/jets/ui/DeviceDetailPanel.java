@@ -29,7 +29,7 @@ public class DeviceDetailPanel extends JTabbedPane {
         
         if (dev.getComObjectInstanceRefs() != null) {
             for (ComObjectInstanceRef ref : dev.getComObjectInstanceRefs().getComObjectInstanceRef()) {
-                ComObject co = Jets.currentContext.findComObject(ref.getRefId());
+                ComObject co = Jets.currentContext.findComObject(dev, ref.getRefId());
                 
                 String num = (co != null) ? String.valueOf(co.getNumber()) : "?";
                 String name = (ref.getText() != null && !ref.getText().isEmpty()) ? ref.getText() : (co != null ? co.getText() : "");
@@ -56,11 +56,19 @@ public class DeviceDetailPanel extends JTabbedPane {
     }
 
     private JComponent createParametersTab(DeviceInstance dev) {
-        DefaultTableModel model = new DefaultTableModel(new String[]{"Parameter", "Value"}, 0);
+        DefaultTableModel model = new DefaultTableModel(new String[]{"Parameter", "Value", "RefId"}, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) { return false; }
+        };
         JTable table = new JTable(model);
         if (dev.getParameterInstanceRefs() != null) {
             for (ParameterInstanceRef p : dev.getParameterInstanceRefs().getParameterInstanceRef()) {
-                model.addRow(new Object[]{p.getRefId(), p.getValue()});
+                String text = Jets.currentContext.findParameterText(dev, p.getRefId());
+                model.addRow(new Object[]{
+                    (text != null ? text : "Unnamed"), 
+                    p.getValue(), 
+                    p.getRefId()
+                });
             }
         }
         return new JScrollPane(table);
