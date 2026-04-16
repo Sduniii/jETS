@@ -137,6 +137,6 @@ public class KnxBusManager {
 
     public String getConnectionInfo() {
         if (!isConnected()) return "Disconnected";
-        return link.getRemoteAddress().toString() + " (" + link.getName() + ")";
+        return link.getName();
     }
 }
