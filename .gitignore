@@ -1,0 +1,56 @@
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.nextSnapshot
+release.properties
+dependency-reduced-pom.xml
+build.log
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# Eclipse
+.settings/
+.classpath
+.project
+.metadata/
+bin/
+*.tmp
+*.bak
+*.swp
+*~.nib
+local.properties
+.loadpath
+.externalToolBuilders/
+*.launch
+.pydevproject
+
+# Logs
+*.log
+logs/
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Project Specific (Temporary unpack folders)
+tmp_unpacked_*
+test_unpack/
+test_unpack_dir/
+test_unpack_dir_*/
+jets_proj_*
+/tmp/jets_proj_*
+
+# Compiled class files
+*.class
+
+# Package Files
+*.jar
+*.war
+*.ear

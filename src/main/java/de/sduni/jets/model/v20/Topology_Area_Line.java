@@ -25,6 +25,9 @@ public class Topology_Area_Line extends KnxBase {
     @JacksonXmlProperty(isAttribute = true, localName = "Puid")
     private int Puid;
     @JacksonXmlElementWrapper(useWrapping = false)
+    @JacksonXmlProperty(localName = "Segment")
+    private java.util.List<Topology_Area_Line_Segment> Segment = new java.util.ArrayList<>();
+    @JacksonXmlElementWrapper(useWrapping = false)
     @JacksonXmlProperty(localName = "DeviceInstance")
     private java.util.List<DeviceInstance> DeviceInstance = new java.util.ArrayList<>();
     @JacksonXmlProperty(localName = "BusAccess")
@@ -50,6 +53,8 @@ public class Topology_Area_Line extends KnxBase {
     public void setDescription(String value) { this.Description = value; }
     public int getPuid() { return Puid; }
     public void setPuid(int value) { this.Puid = value; }
+    public java.util.List<Topology_Area_Line_Segment> getSegment() { return Segment; }
+    public void setSegment(java.util.List<Topology_Area_Line_Segment> value) { this.Segment = value; }
     public java.util.List<DeviceInstance> getDeviceInstance() { return DeviceInstance; }
     public void setDeviceInstance(java.util.List<DeviceInstance> value) { this.DeviceInstance = value; }
     public BusAccess getBusAccess() { return BusAccess; }

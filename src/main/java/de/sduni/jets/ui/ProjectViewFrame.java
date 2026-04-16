@@ -12,7 +12,7 @@ import java.awt.datatransfer.Transferable;
 public class ProjectViewFrame extends JInternalFrame {
 
     private JTree tree;
-    private JTable table;
+    private JPanel detailContainer;
 
     public ProjectViewFrame(String title, Object rootObj) {
         super(title, true, true, true, true);
@@ -23,13 +23,13 @@ public class ProjectViewFrame extends JInternalFrame {
         ProjectTreeModel treeModel = new ProjectTreeModel(rootNode);
         tree = new JTree(treeModel);
         
-        table = new JTable();
+        detailContainer = new JPanel(new BorderLayout());
+        detailContainer.add(new JLabel("Select an item to see details", JLabel.CENTER), BorderLayout.CENTER);
         
         tree.addTreeSelectionListener(e -> {
-            TreePath path = e.getPath();
-            if (path != null) {
-                ProjectTreeNode node = (ProjectTreeNode) path.getLastPathComponent();
-                table.setModel(new ProjectTableModel(node.getUserObject()));
+            ProjectTreeNode node = (ProjectTreeNode) tree.getLastSelectedPathComponent();
+            if (node != null) {
+                updateDetailView(node.getUserObject());
             }
         });
 
@@ -38,9 +38,21 @@ public class ProjectViewFrame extends JInternalFrame {
         tree.setDropMode(DropMode.ON);
         tree.setTransferHandler(new TreeTransferHandler());
 
-        JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, new JScrollPane(tree), new JScrollPane(table));
+        JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, new JScrollPane(tree), detailContainer);
         split.setDividerLocation(300);
         add(split, BorderLayout.CENTER);
+    }
+
+    private void updateDetailView(Object obj) {
+        detailContainer.removeAll();
+        if (obj instanceof de.sduni.jets.model.v20.DeviceInstance) {
+            detailContainer.add(new DeviceDetailPanel((de.sduni.jets.model.v20.DeviceInstance) obj), BorderLayout.CENTER);
+        } else {
+            JTable table = new JTable(new ProjectTableModel(obj));
+            detailContainer.add(new JScrollPane(table), BorderLayout.CENTER);
+        }
+        detailContainer.revalidate();
+        detailContainer.repaint();
     }
 
     private class TreeTransferHandler extends TransferHandler {

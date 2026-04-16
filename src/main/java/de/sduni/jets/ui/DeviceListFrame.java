@@ -1,10 +1,12 @@
 package de.sduni.jets.ui;
 
 import de.sduni.jets.model.v20.*;
+import de.sduni.jets.Jets;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -64,49 +66,50 @@ public class DeviceListFrame extends JInternalFrame {
 
     private void loadDevices(KNX knx) {
         logger.info("Starting device collection for list frame...");
+        devices.clear();
         collectDevices(knx, devices);
         logger.info("Collected {} devices.", devices.size());
         for (DeviceInstance dev : devices) {
-            model.addRow(new Object[]{formatIndividualAddress(dev.getAddress()), dev.getName(), dev.getProductRefId(), "Ready"});
+            String addr = formatIndividualAddress(dev.getAddress());
+            String prodName = null;
+            if (Jets.currentContext != null) {
+                prodName = Jets.currentContext.getDeviceName(addr);
+                // Try harder if not found by address
+                if (prodName == null || prodName.isEmpty()) {
+                    // This is hacky but let's try to find it in the global root
+                    // But we don't have easy access to root here easily without a cast or field
+                }
+            }
+            model.addRow(new Object[]{addr, dev.getName(), (prodName != null && !prodName.isEmpty() ? prodName : dev.getProductRefId()), "Ready"});
         }
     }
 
     private void collectDevices(Object obj, List<DeviceInstance> list) {
         if (obj == null) return;
+        
         if (obj instanceof DeviceInstance) {
             DeviceInstance di = (DeviceInstance) obj;
-            // Avoid adding the same device multiple times if referenced multiple times
             if (list.stream().noneMatch(existing -> existing.getId() != null && existing.getId().equals(di.getId()))) {
                 list.add(di);
             }
             return;
         }
-        try {
-            for (java.lang.reflect.Method m : obj.getClass().getMethods()) {
-                if (m.getName().startsWith("get") && m.getParameterCount() == 0 && !m.getName().equals("getClass") && !m.getName().equals("getProject")) {
-                    Object val = m.invoke(obj);
-                    if (val instanceof KnxBase) collectDevices(val, list);
-                    else if (val instanceof java.util.Collection) {
-                        for (Object item : (java.util.Collection<?>) val) {
-                            if (item instanceof KnxBase) collectDevices(item, list);
-                        }
-                    }
-                }
-            }
-            
-            // Special handling for Project root to skip recursive loop or too deep trees
-            if (obj instanceof KNX) {
-                KNX k = (KNX) obj;
-                if (k.getProject() != null) {
-                    for (Project p : k.getProject()) {
-                        if (p.getInstallations() != null) {
-                            for (Project_Installations_Installation inst : p.getInstallations().getInstallation()) {
-                                if (inst.getTopology() != null) collectDevices(inst.getTopology(), list);
+
+        if (obj instanceof Collection) {
+            for (Object item : (Collection<?>) obj) collectDevices(item, list);
+        } else if (obj instanceof KnxBase) {
+            try {
+                for (java.lang.reflect.Method m : obj.getClass().getMethods()) {
+                    if (m.getName().startsWith("get") && m.getParameterCount() == 0 && !m.getName().equals("getClass")) {
+                        Object val = m.invoke(obj);
+                        if (val != null) {
+                            if (val instanceof KnxBase || val instanceof Collection) {
+                                collectDevices(val, list);
                             }
                         }
                     }
                 }
-            }
-        } catch (Exception ignored) {}
+            } catch (Exception ignored) {}
+        }
     }
 }

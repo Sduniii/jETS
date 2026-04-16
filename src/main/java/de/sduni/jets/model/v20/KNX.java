@@ -28,4 +28,25 @@ public class KNX extends KnxBase {
     public void setManufacturerData(ManufacturerData value) { this.ManufacturerData = value; }
     public java.util.List<Project> getProject() { return Project; }
     public void setProject(java.util.List<Project> value) { this.Project = value; }
+
+    /**
+     * Finds the product name (text) for a given productRefId by searching through manufacturer data.
+     */
+    public String findProductName(String productRefId) {
+        if (productRefId == null || ManufacturerData == null) return null;
+        for (ManufacturerData_Manufacturer m : ManufacturerData.getManufacturer()) {
+            if (m.getHardware() != null) {
+                for (Hardware h : m.getHardware().getHardware()) {
+                    if (h.getProducts() != null) {
+                        for (Hardware_Products_Product p : h.getProducts().getProduct()) {
+                            if (productRefId.equals(p.getId())) {
+                                return p.getText();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+    }
 }

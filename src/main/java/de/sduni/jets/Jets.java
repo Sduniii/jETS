@@ -11,7 +11,6 @@ import org.slf4j.LoggerFactory;
 import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
-import java.awt.event.ActionEvent;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.nio.file.Path;
@@ -202,18 +201,27 @@ public class Jets extends JFrame {
     }
 
     private void openBuildings() {
-        if (currentKnx == null) { showNoProjectMsg(); return; }
-        Project_Installations_Installation inst = currentKnx.getProject().get(0).getInstallations().getInstallation().get(0);
+        if (currentKnx == null || currentKnx.getProject().isEmpty()) { showNoProjectMsg(); return; }
+        Project p = currentKnx.getProject().get(0);
+        if (p.getInstallations() == null || p.getInstallations().getInstallation().isEmpty()) return;
+        Project_Installations_Installation inst = p.getInstallations().getInstallation().get(0);
         addInternalFrame(new ProjectViewFrame("Buildings", inst.getLocations()));
     }
     private void openGroupAddresses() {
-        if (currentKnx == null) { showNoProjectMsg(); return; }
-        Project_Installations_Installation inst = currentKnx.getProject().get(0).getInstallations().getInstallation().get(0);
+        if (currentKnx == null || currentKnx.getProject().isEmpty()) { showNoProjectMsg(); return; }
+        Project p = currentKnx.getProject().get(0);
+        if (p.getInstallations() == null || p.getInstallations().getInstallation().isEmpty()) return;
+        Project_Installations_Installation inst = p.getInstallations().getInstallation().get(0);
         addInternalFrame(new ProjectViewFrame("Group Addresses", inst.getGroupAddresses()));
     }
     private void openTopology() {
-        if (currentKnx == null) { showNoProjectMsg(); return; }
-        Project_Installations_Installation inst = currentKnx.getProject().get(0).getInstallations().getInstallation().get(0);
+        if (currentKnx == null || currentKnx.getProject().isEmpty()) { showNoProjectMsg(); return; }
+        Project p = currentKnx.getProject().get(0);
+        if (p.getInstallations() == null || p.getInstallations().getInstallation().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "No installations found in project.");
+            return;
+        }
+        Project_Installations_Installation inst = p.getInstallations().getInstallation().get(0);
         addInternalFrame(new ProjectViewFrame("Topology", inst.getTopology()));
     }
     private void openDevices() { if (currentKnx != null) addInternalFrame(new DeviceListFrame(currentKnx)); }
@@ -235,24 +243,39 @@ public class Jets extends JFrame {
         JFileChooser fc = new JFileChooser();
         fc.setFileFilter(new FileNameExtensionFilter("KNX Project (.knxproj)", "knxproj"));
         if (fc.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+            Path p = fc.getSelectedFile().toPath();
+            loadProjectWorkflow(p, null);
+        }
+    }
+
+    private void loadProjectWorkflow(Path p, char[] password) {
+        try {
+            Path tmpDir = java.nio.file.Files.createTempDirectory("jets_proj_");
+            logger.info("Unpacking project to temporary directory: {}", tmpDir);
+            
             try {
-                Path p = fc.getSelectedFile().toPath();
-                KNX knx = null;
-                try {
-                    knx = projectReader.readProject(p);
-                } catch (ProjectReader.EncryptedProjectException ex) {
-                    JPasswordField pf = new JPasswordField();
-                    if (JOptionPane.showConfirmDialog(this, pf, "Project Password", JOptionPane.OK_CANCEL_OPTION) == JOptionPane.OK_OPTION) {
-                        knx = projectReader.readProject(p, pf.getPassword());
-                    } else return;
-                }
-                if (knx != null) {
-                    currentKnx = knx;
-                    currentContext = new KnxContext(currentKnx);
-                    logger.info("Project loaded: " + fc.getSelectedFile().getName());
-                    openTopology();
-                }
-            } catch (Exception ex) { logger.error("Load failed", ex); }
+                projectReader.unpackKnxProject(p, tmpDir, password);
+            } catch (ProjectReader.EncryptedProjectException ex) {
+                JPasswordField pf = new JPasswordField();
+                if (JOptionPane.showConfirmDialog(this, pf, "Project Password Required", JOptionPane.OK_CANCEL_OPTION) == JOptionPane.OK_OPTION) {
+                    loadProjectWorkflow(p, pf.getPassword());
+                    return;
+                } else return;
+            }
+
+            KNX knx = projectReader.readProjectFromDirectory(tmpDir);
+            
+            if (knx != null && knx.getProject() != null && !knx.getProject().isEmpty()) {
+                currentKnx = knx;
+                currentContext = new KnxContext(currentKnx);
+                logger.info("Project loaded successfully.");
+                openTopology();
+            } else {
+                JOptionPane.showMessageDialog(this, "Project could not be loaded or is empty.");
+            }
+        } catch (Exception ex) { 
+            logger.error("Load failed", ex);
+            JOptionPane.showMessageDialog(this, "Error loading project: " + ex.getMessage());
         }
     }
 

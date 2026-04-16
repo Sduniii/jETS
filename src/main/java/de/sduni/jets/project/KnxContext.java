@@ -30,6 +30,7 @@ public class KnxContext {
         // 1. Get ID and index
         String id = getObjectId(obj);
         if (id != null && !id.isEmpty()) {
+            if (idMap.containsKey(id) && idMap.get(id) == obj) return; // Already indexed
             idMap.put(id, obj);
             // KNX ID normalization (strip prefixes if necessary)
             if (id.contains("_")) {
@@ -45,28 +46,44 @@ public class KnxContext {
         } else if (obj instanceof DeviceInstance) {
             DeviceInstance dev = (DeviceInstance) obj;
             deviceNameMap.put(formatIndividualAddress(dev.getAddress()), dev.getName());
+            // logger.debug("Reached DeviceInstance: {} (ID: {})", dev.getName(), dev.getId());
         }
 
         // 3. Deep recursion into all fields/methods
         if (obj instanceof Collection) {
             for (Object item : (Collection<?>) obj) deepIndex(item);
         } else if (obj instanceof KnxBase) {
+            // Structural Logging
+            if (obj instanceof KNX) logger.debug("Indexing KNX root...");
+            else if (obj instanceof Project) {
+                Project p = (Project) obj;
+                String pName = (p.getProjectInformation() != null) ? p.getProjectInformation().getName() : "Unknown";
+                logger.debug("Indexing Project: {} (ID: {})", pName, p.getId());
+            } else if (obj instanceof Project_Installations_Installation) logger.debug("Indexing Installation: {}", ((Project_Installations_Installation)obj).getName());
+            else if (obj instanceof Topology) logger.debug("Indexing Topology...");
+            else if (obj instanceof Topology_Area) {
+                Topology_Area area = (Topology_Area) obj;
+                int lineCount = (area.getLine() != null) ? area.getLine().size() : 0;
+                logger.debug("Indexing Area: {} ({} lines)", area.getName(), lineCount);
+            } else if (obj instanceof Topology_Area_Line) {
+                Topology_Area_Line line = (Topology_Area_Line) obj;
+                int devCount = (line.getDeviceInstance() != null) ? line.getDeviceInstance().size() : 0;
+                logger.debug("Indexing Line: {} ({} devices)", line.getName(), devCount);
+            } else if (obj instanceof DeviceInstance) logger.debug("Indexing Device: {} (Addr: {})", ((DeviceInstance)obj).getName(), formatIndividualAddress(((DeviceInstance)obj).getAddress()));
+
+            // Recursively scan all "get*" methods that return something interesting
             for (Method m : obj.getClass().getMethods()) {
                 if (m.getName().startsWith("get") && m.getParameterCount() == 0 && 
-                    !m.getName().equals("getClass") && !m.getName().equals("getProject")) {
+                    !m.getName().equals("getClass")) {
                     try {
                         Object val = m.invoke(obj);
-                        if (val != null) deepIndex(val);
+                        if (val != null) {
+                            if (val instanceof KnxBase || val instanceof Collection) {
+                                deepIndex(val);
+                            }
+                        }
                     } catch (Exception ignored) {}
                 }
-            }
-        }
-        
-        // 4. Forced scan for projects if root
-        if (obj instanceof KNX) {
-            KNX k = (KNX) obj;
-            if (k.getProject() != null) {
-                for (Project p : k.getProject()) deepIndex(p);
             }
         }
     }
@@ -121,6 +138,35 @@ public class KnxContext {
 
     public String getDeviceName(String addrStr) {
         return deviceNameMap.getOrDefault(addrStr, "");
+    }
+
+    public KNX getRoot() { return root; }
+
+    public ComObject findComObject(String comObjectRefId) {
+        if (comObjectRefId == null || root.getManufacturerData() == null) return null;
+        // Search in manufacturer data
+        for (ManufacturerData_Manufacturer m : root.getManufacturerData().getManufacturer()) {
+            if (m.getApplicationPrograms() != null) {
+                for (ApplicationProgram ap : m.getApplicationPrograms().getApplicationProgram()) {
+                    if (ap.getStatic() != null && ap.getStatic().getComObjectTable() != null) {
+                        for (ComObject co : ap.getStatic().getComObjectTable().getComObject()) {
+                            if (comObjectRefId.equals(co.getId())) return co;
+                        }
+                    }
+                }
+            }
+        }
+        // Also check by ID map if it's already indexed
+        Object obj = findById(comObjectRefId);
+        if (obj instanceof ComObject) return (ComObject) obj;
+        
+        return null;
+    }
+
+    public GroupAddress findGroupAddress(String refId) {
+        Object obj = findById(refId);
+        if (obj instanceof GroupAddress) return (GroupAddress) obj;
+        return null;
     }
 
     private String formatGroupAddress(long address) {

@@ -38,6 +38,9 @@ public class ComObjectInstanceRef extends KnxBase {
     private String Links;
     @JacksonXmlProperty(isAttribute = true, localName = "Acknowledges")
     private String Acknowledges;
+    @JacksonXmlElementWrapper(useWrapping = false)
+    @JacksonXmlProperty(localName = "Connect")
+    private List<ComObjectInstanceRef_Connect> Connect = new ArrayList<>();
 
     public String getId() { return Id; }
     public void setId(String value) { this.Id = value; }
@@ -71,4 +74,6 @@ public class ComObjectInstanceRef extends KnxBase {
     public void setLinks(String value) { this.Links = value; }
     public String getAcknowledges() { return Acknowledges; }
     public void setAcknowledges(String value) { this.Acknowledges = value; }
+    public List<ComObjectInstanceRef_Connect> getConnect() { return Connect; }
+    public void setConnect(List<ComObjectInstanceRef_Connect> value) { this.Connect = value; }
 }
