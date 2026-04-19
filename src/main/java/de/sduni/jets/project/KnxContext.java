@@ -34,14 +34,40 @@ public class KnxContext {
 
     public Object findById(String id) {
         if (id == null) return null;
+        return idMap.get(id);
+    }
+
+    /**
+     * Stricly resolves a parameter definition following the relation:
+     * ParameterRef (Id) -> Parameter (RefId)
+     */
+    public ApplicationProgramStatic_Parameters_Parameter resolveParameterDefinition(ApplicationProgram ap, String id) {
+        if (id == null || ap == null) return null;
+
         Object found = idMap.get(id);
-        if (found != null) return found;
         
-        if (id.contains("_R-")) {
-            String baseId = id.substring(0, id.lastIndexOf("_R-"));
-            found = idMap.get(baseId);
-            if (found != null) return found;
+        // 1. If it's directly a Parameter, we are done
+        if (found instanceof ApplicationProgramStatic_Parameters_Parameter) {
+            return (ApplicationProgramStatic_Parameters_Parameter) found;
         }
+
+        // 2. If it's a ParameterRef, follow its RefId
+        if (found instanceof ParameterRef) {
+            return resolveParameterDefinition(ap, ((ParameterRef) found).getRefId());
+        }
+
+        // 3. Fallback: Search manually in lists if not indexed
+        if (ap.getStatic() != null) {
+            if (ap.getStatic().getParameterRefs() != null) {
+                for (ParameterRef ref : ap.getStatic().getParameterRefs().getParameterRef()) {
+                    if (id.equals(ref.getId())) return resolveParameterDefinition(ap, ref.getRefId());
+                }
+            }
+            if (ap.getStatic().getParameters() != null) {
+                return searchParameterInList(ap.getStatic().getParameters(), id);
+            }
+        }
+
         return null;
     }
 
@@ -72,12 +98,10 @@ public class KnxContext {
                     if (h.getProducts() != null) {
                         for (Hardware_Products_Product p : h.getProducts().getProduct()) {
                             if (refId.equals(p.getId())) {
-                                // 1. Try Translation (LanguageData / TranslationUnit structure)
                                 if (m.getLanguages() != null) {
                                     String translated = findTranslationInLanguageData(m.getLanguages().getLanguage(), refId, "Text");
                                     if (translated != null) return translated;
                                 }
-                                // 2. Fallback to attribute
                                 return p.getText();
                             }
                         }
@@ -125,16 +149,12 @@ public class KnxContext {
     public ComObject findComObject(DeviceInstance di, String corRefId) {
         if (corRefId == null || di == null) return null;
         
-        String localId = corRefId;
-        if (corRefId.contains("_R-")) {
-            localId = corRefId.substring(0, corRefId.lastIndexOf("_R-"));
-        }
-        
+        // COR IDs in 0.xml are usually the same as CO IDs in the Application XML
+        // Search in the specific program
         ApplicationProgram ap = findApplicationProgram(di.getHardware2ProgramRefId());
         if (ap != null && ap.getStatic() != null && ap.getStatic().getComObjectTable() != null) {
             for (ComObject co : ap.getStatic().getComObjectTable().getComObject()) {
-                if (co.getId().endsWith("_" + localId) || co.getId().equals(localId)) {
-                    // Enrich CO with translated texts if available
+                if (corRefId.equals(co.getId()) || co.getId().endsWith("_" + corRefId)) {
                     TranslationElement te = findTranslationElement(ap.getLanguage(), co.getId());
                     if (te != null) {
                         if (te.getFunctionText() != null) co.setFunctionText(te.getFunctionText());
@@ -186,28 +206,62 @@ public class KnxContext {
 
     public String findParameterText(DeviceInstance di, String paramRefId) {
         if (paramRefId == null || di == null) return null;
-        
-        String baseId = paramRefId;
-        if (paramRefId.contains("_R-")) {
-            baseId = paramRefId.substring(0, paramRefId.lastIndexOf("_R-"));
+        ApplicationProgram ap = findApplicationProgram(di.getHardware2ProgramRefId());
+        if (ap == null) return null;
+
+        // 1. Try Translation for the specific ID (could be a RefId)
+        String translated = findTranslation(ap.getLanguage(), paramRefId, "Text");
+        if (translated != null) return translated;
+
+        // 2. Resolve definition to get base parameter
+        ApplicationProgramStatic_Parameters_Parameter pDef = resolveParameterDefinition(ap, paramRefId);
+        if (pDef != null) {
+            String baseTranslated = findTranslation(ap.getLanguage(), pDef.getId(), "Text");
+            if (baseTranslated != null) return baseTranslated;
+            return pDef.getText();
         }
+        
+        return null;
+    }
+
+    public String resolveParameterValueText(DeviceInstance di, String paramRefId, String rawValue) {
+        if (di == null || paramRefId == null || rawValue == null) return rawValue;
 
         ApplicationProgram ap = findApplicationProgram(di.getHardware2ProgramRefId());
-        if (ap != null && ap.getStatic() != null && ap.getStatic().getParameters() != null) {
-            // 1. Try Translation first
-            String translated = findTranslation(ap.getLanguage(), baseId, "Text");
-            if (translated != null) return translated;
-            
-            // 2. Search in parameter list
-            return searchParameterInList(ap.getStatic().getParameters(), baseId);
+        if (ap == null) return rawValue;
+
+        ApplicationProgramStatic_Parameters_Parameter pDef = resolveParameterDefinition(ap, paramRefId);
+        if (pDef == null) return rawValue;
+
+        String typeRef = pDef.getParameterType();
+        ParameterType pt = null;
+        if (ap.getStatic() != null && ap.getStatic().getParameterTypes() != null) {
+            for (ParameterType t : ap.getStatic().getParameterTypes().getParameterType()) {
+                if (typeRef.equals(t.getId())) { pt = t; break; }
+            }
         }
-        return null;
+
+        if (pt == null) return rawValue;
+
+        if (pt.getTypeRestriction() != null && !pt.getTypeRestriction().getEnumeration().isEmpty()) {
+            try {
+                long val = Long.parseLong(rawValue);
+                for (ParameterType_TypeRestriction_Enumeration en : pt.getTypeRestriction().getEnumeration()) {
+                    if (en.getValue() == val) {
+                        String translated = findTranslation(ap.getLanguage(), en.getId(), "Text");
+                        if (translated != null) return translated;
+                        return en.getText();
+                    }
+                }
+            } catch (NumberFormatException ignored) {}
+        }
+
+        return rawValue;
     }
 
     private String findTranslation(List<Language> languages, String refId, String attribute) {
         if (languages == null) return null;
         for (Language l : languages) {
-            // Prefer en-US or de-DE or just anything
             for (TranslationElement te : l.getTranslationElement()) {
                 if (refId.equals(te.getRefId())) {
                     if ("Text".equals(attribute)) return te.getText();
@@ -234,7 +288,7 @@ public class KnxContext {
         if (obj instanceof GroupAddress) return (GroupAddress) obj;
         for (Map.Entry<String, Object> entry : idMap.entrySet()) {
             if (entry.getValue() instanceof GroupAddress) {
-                if (entry.getKey().endsWith("_" + refId) || entry.getKey().equals(refId)) {
+                if (entry.getKey().endsWith("_" + refId)) {
                     return (GroupAddress) entry.getValue();
                 }
             }
@@ -256,17 +310,22 @@ public class KnxContext {
         return ids;
     }
 
-    private String searchParameterInList(ApplicationProgramStatic_Parameters list, String id) {
+    private ApplicationProgramStatic_Parameters_Parameter searchParameterInList(ApplicationProgramStatic_Parameters list, String id) {
         if (list.getParameter() != null) {
             for (ApplicationProgramStatic_Parameters_Parameter p : list.getParameter()) {
-                if (id.equals(p.getId())) return p.getText();
+                if (id.equals(p.getId())) return p;
             }
         }
         if (list.getUnion() != null) {
             for (ApplicationProgramStatic_Parameters_Union u : list.getUnion()) {
                 if (u.getParameter() != null) {
-                    for (UnionParameter p : u.getParameter()) {
-                        if (id.equals(p.getId())) return p.getText();
+                    for (UnionParameter up : u.getParameter()) {
+                        if (id.equals(up.getId())) {
+                            ApplicationProgramStatic_Parameters_Parameter p = new ApplicationProgramStatic_Parameters_Parameter();
+                            p.setId(up.getId()); p.setName(up.getName()); p.setText(up.getText());
+                            p.setParameterType(up.getParameterType());
+                            return p;
+                        }
                     }
                 }
             }
@@ -278,12 +337,8 @@ public class KnxContext {
         if (obj == null) return;
         String id = getObjectId(obj);
         if (id != null && !id.isEmpty()) {
-            if (idMap.containsKey(id) && idMap.get(id) == obj) return;
-            idMap.put(id, obj);
-            if (id.contains("_")) {
-                String shortId = id.substring(id.lastIndexOf('_') + 1);
-                if (!idMap.containsKey(shortId)) idMap.put(shortId, obj);
-            }
+            // Index with exact ID
+            if (!idMap.containsKey(id)) idMap.put(id, obj);
         }
         if (obj instanceof GroupAddress) {
             GroupAddress ga = (GroupAddress) obj;

@@ -11,7 +11,10 @@ import org.slf4j.LoggerFactory;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+import javax.xml.stream.XMLInputFactory;
+import javax.xml.stream.XMLStreamReader;
 import java.io.InputStream;
+import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -24,18 +27,25 @@ import java.lang.reflect.Method;
 public class ProjectReader {
     private static final Logger logger = LoggerFactory.getLogger(ProjectReader.class);
     private final XmlMapper xmlMapper;
+    private final XMLInputFactory xmlInputFactory;
 
     public static class EncryptedProjectException extends Exception {
         public EncryptedProjectException(String message) { super(message); }
     }
 
     public ProjectReader() {
+        xmlInputFactory = XMLInputFactory.newFactory();
         xmlMapper = new XmlMapper();
         xmlMapper.registerModule(new JavaTimeModule());
         xmlMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         xmlMapper.configure(DeserializationFeature.ACCEPT_SINGLE_VALUE_AS_ARRAY, true);
-        // Important: Ignore namespaces to be compatible with different project versions (11, 12, 13, 14, 20)
-        xmlMapper.getFactory().getXMLInputFactory().setProperty(javax.xml.stream.XMLInputFactory.IS_NAMESPACE_AWARE, false);
+    }
+
+    private KNX parseXml(InputStream is) throws Exception {
+        XMLStreamReader xsr = xmlInputFactory.createXMLStreamReader(is);
+        // Apply the Namespace Rewriting Filter
+        xsr = new KnxNamespaceFilter(xsr);
+        return xmlMapper.readValue(xsr, KNX.class);
     }
 
     public static char[] deriveEtsPassword(char[] rawPassword) throws Exception {
@@ -92,7 +102,7 @@ public class ProjectReader {
                 if (name.equals("knx_master.xml") || (name.startsWith("M-") && name.endsWith(".xml")) ||
                     (name.startsWith("M-") && (name.endsWith("/Hardware.xml") || name.endsWith("/Catalog.xml")))) {
                     try (InputStream is = zipFile.getInputStream(entry)) {
-                        KNX part = xmlMapper.readValue(is, KNX.class);
+                        KNX part = parseXml(is);
                         mergeManufacturerData(rootKnx, part);
                     } catch (Exception e) {
                         if (e.getMessage() != null && e.getMessage().contains("password") && derivedPassword == null)
@@ -113,8 +123,7 @@ public class ProjectReader {
                                 String iname = ie.getFileName();
                                 if (iname.endsWith("project.xml") || iname.endsWith("0.xml")) {
                                     try (InputStream iis = innerZip.getInputStream(ie)) {
-                                        byte[] content = iis.readAllBytes();
-                                        processInnerXml(rootKnx, content, iname);
+                                        mergeKnxData(rootKnx, parseXml(iis));
                                     } catch (Exception e) {
                                         logger.warn("Could not read inner file {}: {}", iname, e.getMessage());
                                     }
@@ -126,65 +135,6 @@ public class ProjectReader {
             }
         }
         return rootKnx;
-    }
-
-    public KNX readProjectFromDirectory(Path baseDir) throws Exception {
-        KNX rootKnx = new KNX();
-        logger.info("Reading project from directory: {}", baseDir);
-        
-        Files.walk(baseDir).forEach(path -> {
-            String name = baseDir.relativize(path).toString();
-            if (name.equals("knx_master.xml") || (name.startsWith("M-") && name.endsWith(".xml")) ||
-                (name.startsWith("M-") && (name.endsWith("/Hardware.xml") || name.endsWith("/Catalog.xml")))) {
-                if (Files.isRegularFile(path)) {
-                    try (InputStream is = Files.newInputStream(path)) {
-                        KNX part = xmlMapper.readValue(is, KNX.class);
-                        mergeManufacturerData(rootKnx, part);
-                    } catch (Exception e) {
-                        logger.debug("Skipping file {}: {}", name, e.getMessage());
-                    }
-                }
-            }
-            // Unpacked project data (P-xxxx/0.xml and project.xml)
-            String fileName = path.getFileName().toString();
-            if (fileName.equals("project.xml") || fileName.equals("0.xml")) {
-                if (Files.isRegularFile(path)) {
-                    try {
-                        byte[] content = Files.readAllBytes(path);
-                        processInnerXml(rootKnx, content, name);
-                    } catch (Exception e) {
-                        logger.warn("Could not read inner file {}: {}", name, e.getMessage());
-                    }
-                }
-            }
-        });
-        
-        return rootKnx;
-    }
-
-    private void processInnerXml(KNX rootKnx, byte[] content, String filename) throws Exception {
-        String xmlStr = new String(content, StandardCharsets.UTF_8);
-        if (xmlStr.contains("project/11")) logger.info("Detected KNX Project Version 1.1 (ETS3)");
-        else if (xmlStr.contains("project/12")) logger.info("Detected KNX Project Version 1.2 (ETS4)");
-        else if (xmlStr.contains("project/13")) logger.info("Detected KNX Project Version 1.3 (ETS5)");
-        else if (xmlStr.contains("project/14")) logger.info("Detected KNX Project Version 1.4 (ETS5.7)");
-        else if (xmlStr.contains("project/20")) logger.info("Detected KNX Project Version 2.0 (ETS6)");
-        
-        KNX innerKnx = xmlMapper.readValue(content, KNX.class);
-        if (innerKnx.getProject() != null && !innerKnx.getProject().isEmpty()) {
-            Project p = innerKnx.getProject().get(0);
-            logger.debug("Read Project from {}: ID={}, Name={}", filename, p.getId(), 
-                (p.getProjectInformation() != null ? p.getProjectInformation().getName() : "N/A"));
-            if (p.getInstallations() != null && !p.getInstallations().getInstallation().isEmpty()) {
-                Project_Installations_Installation inst = p.getInstallations().getInstallation().get(0);
-                if (inst.getTopology() != null) {
-                    logger.debug("  Topology found with {} areas.", inst.getTopology().getArea().size());
-                } else {
-                    logger.debug("  No Topology found in this file.");
-                }
-            }
-        }
-        mergeKnxData(rootKnx, innerKnx);
     }
 
     public void unpackKnxProject(Path knxprojPath, Path outputDir, char[] rawPassword) throws Exception {
@@ -218,6 +168,43 @@ public class ProjectReader {
                 logger.warn("Failed to unpack nested zip {}: {}", path, e.getMessage());
             }
         }
+    }
+
+    public KNX readProjectFromDirectory(Path baseDir) throws Exception {
+        KNX rootKnx = new KNX();
+        logger.info("Reading project from directory: {}", baseDir);
+        
+        Files.walk(baseDir).forEach(path -> {
+            String name = baseDir.relativize(path).toString();
+            if (name.equals("knx_master.xml") || (name.startsWith("M-") && name.endsWith(".xml")) ||
+                (name.startsWith("M-") && (name.endsWith("/Hardware.xml") || name.endsWith("/Catalog.xml")))) {
+                if (Files.isRegularFile(path)) {
+                    try (InputStream is = Files.newInputStream(path)) {
+                        KNX part = parseXml(is);
+                        mergeManufacturerData(rootKnx, part);
+                    } catch (Exception e) {
+                        logger.debug("Skipping file {}: {}", name, e.getMessage());
+                    }
+                }
+            }
+            
+            String fileName = path.getFileName().toString();
+            if (fileName.equals("project.xml") || fileName.equals("0.xml")) {
+                if (Files.isRegularFile(path)) {
+                    try (InputStream is = Files.newInputStream(path)) {
+                        processInnerXml(rootKnx, is, name);
+                    } catch (Exception e) {
+                        logger.warn("Could not read inner file {}: {}", name, e.getMessage());
+                    }
+                }
+            }
+        });
+        
+        return rootKnx;
+    }
+
+    private void processInnerXml(KNX rootKnx, InputStream is, String filename) throws Exception {
+        mergeKnxData(rootKnx, parseXml(is));
     }
 
     private void mergeManufacturerData(KNX root, KNX source) {
@@ -319,7 +306,6 @@ public class ProjectReader {
                         if (rLine == null) {
                             rArea.getLine().add(sLine);
                         } else {
-                            // Merge Segments
                             if (sLine.getSegment() != null) {
                                 for (Topology_Area_Line_Segment ss : sLine.getSegment()) {
                                     Topology_Area_Line_Segment rs = rLine.getSegment().stream()
@@ -327,7 +313,6 @@ public class ProjectReader {
                                     if (rs == null) {
                                         rLine.getSegment().add(ss);
                                     } else {
-                                        // Merge Devices in Segment
                                         if (ss.getDeviceInstance() != null) {
                                             for (DeviceInstance sd : ss.getDeviceInstance()) {
                                                 if (rs.getDeviceInstance().stream().noneMatch(rd -> rd.getId().equals(sd.getId()))) {
@@ -338,7 +323,6 @@ public class ProjectReader {
                                     }
                                 }
                             }
-                            // Merge direct Devices in Line (legacy or mixed)
                             if (sLine.getDeviceInstance() != null) {
                                 for (DeviceInstance sd : sLine.getDeviceInstance()) {
                                     if (rLine.getDeviceInstance().stream().noneMatch(rd -> rd.getId().equals(sd.getId()))) {
@@ -366,8 +350,11 @@ public class ProjectReader {
     private void mergeLocations(Locations r, Locations s) {
         for (Space sSpace : s.getSpace()) {
             Space rSpace = r.getSpace().stream().filter(sp -> sp.getId().equals(sSpace.getId())).findFirst().orElse(null);
-            if (rSpace == null) r.getSpace().add(sSpace);
-            else mergeSpaces(rSpace, sSpace);
+            if (rSpace == null) {
+                r.getSpace().add(sSpace);
+            } else {
+                mergeSpaces(rSpace, sSpace);
+            }
         }
     }
 
@@ -379,8 +366,11 @@ public class ProjectReader {
         }
         for (Space ss : s.getSpace()) {
             Space rs = r.getSpace().stream().filter(p -> p.getId().equals(ss.getId())).findFirst().orElse(null);
-            if (rs == null) r.getSpace().add(ss);
-            else mergeSpaces(rs, ss);
+            if (rs == null) {
+                r.getSpace().add(ss);
+            } else {
+                mergeSpaces(rs, ss);
+            }
         }
     }
 

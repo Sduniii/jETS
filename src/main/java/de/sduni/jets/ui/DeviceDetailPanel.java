@@ -56,22 +56,7 @@ public class DeviceDetailPanel extends JTabbedPane {
     }
 
     private JComponent createParametersTab(DeviceInstance dev) {
-        DefaultTableModel model = new DefaultTableModel(new String[]{"Parameter", "Value", "RefId"}, 0) {
-            @Override
-            public boolean isCellEditable(int row, int column) { return false; }
-        };
-        JTable table = new JTable(model);
-        if (dev.getParameterInstanceRefs() != null) {
-            for (ParameterInstanceRef p : dev.getParameterInstanceRefs().getParameterInstanceRef()) {
-                String text = Jets.currentContext.findParameterText(dev, p.getRefId());
-                model.addRow(new Object[]{
-                    (text != null ? text : "Unnamed"), 
-                    p.getValue(), 
-                    p.getRefId()
-                });
-            }
-        }
-        return new JScrollPane(table);
+        return new ParameterFormPanel(dev);
     }
 
     private String formatGroupAddress(long address) {

@@ -36,6 +36,19 @@ public class ComObjectParameterBlock extends KnxBase {
     private boolean ShowInComObjectTree;
     @JacksonXmlProperty(isAttribute = true, localName = "Semantics")
     private String Semantics;
+
+    @JacksonXmlElementWrapper(useWrapping = false)
+    @JacksonXmlProperty(localName = "ParameterRefRef")
+    private List<ParameterRefRef> ParameterRefRef = new ArrayList<>();
+
+    @JacksonXmlElementWrapper(useWrapping = false)
+    @JacksonXmlProperty(localName = "ComObjectRefRef")
+    private List<ComObjectRefRef> ComObjectRefRef = new ArrayList<>();
+
+    @JacksonXmlElementWrapper(useWrapping = false)
+    @JacksonXmlProperty(localName = "choose")
+    private List<ChannelChoose> choose = new ArrayList<>();
+
     @JacksonXmlProperty(localName = "Rows")
     private ComObjectParameterBlock_Rows Rows = null;
     @JacksonXmlProperty(localName = "Columns")
@@ -75,4 +88,11 @@ public class ComObjectParameterBlock extends KnxBase {
     public void setRows(ComObjectParameterBlock_Rows value) { this.Rows = value; }
     public ComObjectParameterBlock_Columns getColumns() { return Columns; }
     public void setColumns(ComObjectParameterBlock_Columns value) { this.Columns = value; }
+
+    public List<ParameterRefRef> getParameterRefRef() { return ParameterRefRef; }
+    public void setParameterRefRef(List<ParameterRefRef> value) { this.ParameterRefRef = value; }
+    public List<ComObjectRefRef> getComObjectRefRef() { return ComObjectRefRef; }
+    public void setComObjectRefRef(List<ComObjectRefRef> value) { this.ComObjectRefRef = value; }
+    public List<ChannelChoose> getChoose() { return choose; }
+    public void setChoose(List<ChannelChoose> value) { this.choose = value; }
 }

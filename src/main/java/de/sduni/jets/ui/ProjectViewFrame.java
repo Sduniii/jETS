@@ -45,10 +45,16 @@ public class ProjectViewFrame extends JInternalFrame {
 
     private void updateDetailView(Object obj) {
         detailContainer.removeAll();
-        if (obj instanceof de.sduni.jets.model.v20.DeviceInstance) {
-            detailContainer.add(new DeviceDetailPanel((de.sduni.jets.model.v20.DeviceInstance) obj), BorderLayout.CENTER);
+        
+        Object target = obj;
+        if (obj instanceof de.sduni.jets.model.v20.DeviceInstanceRef) {
+            target = de.sduni.jets.Jets.currentContext.findById(((de.sduni.jets.model.v20.DeviceInstanceRef) obj).getRefId());
+        }
+
+        if (target instanceof de.sduni.jets.model.v20.DeviceInstance) {
+            detailContainer.add(new DeviceDetailPanel((de.sduni.jets.model.v20.DeviceInstance) target), BorderLayout.CENTER);
         } else {
-            JTable table = new JTable(new ProjectTableModel(obj));
+            JTable table = new JTable(new ProjectTableModel(target));
             detailContainer.add(new JScrollPane(table), BorderLayout.CENTER);
         }
         detailContainer.revalidate();

@@ -54,7 +54,6 @@ public class Jets extends JFrame {
         toFront();
 
         desktopPane = new JDesktopPane();
-        desktopPane.setBackground(Color.DARK_GRAY);
         
         // Status Bar
         JPanel statusBar = new JPanel(new BorderLayout());
@@ -417,7 +416,7 @@ public class Jets extends JFrame {
     }
 
     public static void main(String[] args) {
-        try { UIManager.setLookAndFeel(new com.formdev.flatlaf.FlatDarculaLaf()); } catch (Exception ignored) {}
+        try { UIManager.setLookAndFeel(new com.formdev.flatlaf.FlatIntelliJLaf()); } catch (Exception ignored) {}
         SwingUtilities.invokeLater(() -> new Jets().setVisible(true));
     }
 }

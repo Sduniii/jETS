@@ -62,11 +62,13 @@ public class ProjectTreeNode {
 
         if (target instanceof DeviceInstance) {
             DeviceInstance di = (DeviceInstance) target;
-            
+            // Parameters
             if (di.getParameterInstanceRefs() != null && di.getParameterInstanceRefs().getParameterInstanceRef() != null) {
                 ProjectTreeNode paramFolder = new ProjectTreeNode("🔧 Parameters", null);
                 for (ParameterInstanceRef p : di.getParameterInstanceRefs().getParameterInstanceRef()) {
-                    paramFolder.getChildren().add(new ProjectTreeNode(getParameterLabel(di, p) + ": " + p.getValue(), p));
+                    String label = getParameterLabel(di, p);
+                    String valText = Jets.currentContext.resolveParameterValueText(di, p.getRefId(), p.getValue());
+                    paramFolder.getChildren().add(new ProjectTreeNode(label + ": " + valText, p));
                 }
                 if (!paramFolder.getChildren().isEmpty()) children.add(paramFolder);
             }
@@ -189,6 +191,10 @@ public class ProjectTreeNode {
             return "Device: " + (name != null ? name : "Unknown") + " [." + di.getAddress() + "]";
         }
         try {
+            if (displayItem instanceof GroupAddress) {
+                GroupAddress ga = (GroupAddress) displayItem;
+                return "[" + formatGroupAddress(ga.getAddress()) + "] " + ga.getName();
+            }
             Method m = displayItem.getClass().getMethod("getName");
             String name = (String) m.invoke(displayItem);
             if (name != null && !name.isEmpty()) return name;

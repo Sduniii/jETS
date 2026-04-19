@@ -25,6 +25,14 @@ public class ApplicationProgramChannel extends KnxBase {
     @JacksonXmlProperty(isAttribute = true, localName = "Semantics")
     private String Semantics;
 
+    @JacksonXmlElementWrapper(useWrapping = false)
+    @JacksonXmlProperty(localName = "ParameterBlock")
+    private List<ComObjectParameterBlock> ParameterBlock = new ArrayList<>();
+
+    @JacksonXmlElementWrapper(useWrapping = false)
+    @JacksonXmlProperty(localName = "choose")
+    private List<ChannelChoose> choose = new ArrayList<>();
+
     public String getId() { return Id; }
     public void setId(String value) { this.Id = value; }
     public String getName() { return Name; }
@@ -43,4 +51,8 @@ public class ApplicationProgramChannel extends KnxBase {
     public void setHelpContext(String value) { this.HelpContext = value; }
     public String getSemantics() { return Semantics; }
     public void setSemantics(String value) { this.Semantics = value; }
+    public List<ComObjectParameterBlock> getParameterBlock() { return ParameterBlock; }
+    public void setParameterBlock(List<ComObjectParameterBlock> value) { this.ParameterBlock = value; }
+    public List<ChannelChoose> getChoose() { return choose; }
+    public void setChoose(List<ChannelChoose> value) { this.choose = value; }
 }
